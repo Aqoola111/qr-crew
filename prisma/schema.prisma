@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MemberRole {
+  OWNER
+  CONTRIBUTOR
+  MEMBER
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  members            Member[]
+  sessionMemberships SessionRoomMembership[]
+  activeForSessions  BrowserSession[]      @relation("ActiveRoom")
+}
+
+model Member {
+  id          String     @id @default(cuid())
+  roomId      String
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  displayName String
+  role        MemberRole @default(MEMBER)
+
+  sessionMemberships SessionRoomMembership[]
+}
+
+/// Anonymous browser session (opaque cookie token). Holds which room is currently active for swap.
+model BrowserSession {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  /// Display name locked after first join/create on this device (same person across rooms).
+  displayName  String?
+  activeRoomId String?
+  activeRoom   Room?    @relation("ActiveRoom", fields: [activeRoomId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships SessionRoomMembership[]
+
+  @@index([token])
+}
+
+/// Links a browser session to a member record in a specific room (multi-room support).
+model SessionRoomMembership {
+  id        String @id @default(cuid())
+  sessionId String
+  session   BrowserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, roomId])
+  @@index([sessionId])
+}
