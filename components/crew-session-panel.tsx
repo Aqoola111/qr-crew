@@ -5,6 +5,8 @@ import { CheckIcon, ChevronsUpDownIcon, Trash2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { clearLocalUserId } from "@/lib/local-user";
+import { memberRoleHe } from "@/lib/ui-he";
 import { useTRPC } from "@/trpc/client";
 import {
   AlertDialog,
@@ -38,6 +40,7 @@ export function CrewSessionPanel() {
     ...trpc.crew.setActiveRoom.mutationOptions(),
     onSuccess: async () => {
       await queryClient.invalidateQueries(trpc.crew.me.queryFilter());
+      await queryClient.invalidateQueries(trpc.crew.roomMembers.queryFilter());
     },
     onError: (e) => toast.error(e.message),
   });
@@ -45,7 +48,8 @@ export function CrewSessionPanel() {
   const forgetMe = useMutation({
     ...trpc.crew.forgetMe.mutationOptions(),
     onSuccess: async () => {
-      toast.success("This device’s session was cleared.");
+      clearLocalUserId();
+      toast.success("סשן המכשיר נוקה.");
       await queryClient.invalidateQueries(trpc.crew.me.queryFilter());
       router.refresh();
       setForgetOpen(false);
@@ -58,7 +62,7 @@ export function CrewSessionPanel() {
   if (!crew.session) {
     return (
       <p className="text-muted-foreground text-sm">
-        No room session yet — create or join a room below. Your crew stays on this device via a cookie.
+        אין עדיין סשן חדר — צרו או הצטרפו למטה. הזיהוי נשמר במכשיר הזה דרך עוגייה.
       </p>
     );
   }
@@ -66,6 +70,8 @@ export function CrewSessionPanel() {
   const active = crew.activeMembership;
   const memberships = crew.memberships;
   const deviceName = crew.session.displayName?.trim();
+  /** Cookie/DB row alone is not “onboarded” until a name is saved or the user is in a room. */
+  const sessionIsEstablished = Boolean(deviceName) || memberships.length > 0;
 
   async function goToRoom(roomId: string) {
     await setActiveRoom.mutateAsync({ roomId });
@@ -76,16 +82,22 @@ export function CrewSessionPanel() {
     <div className="space-y-4 text-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <p className="text-muted-foreground">
-          Browser session active.
-          {deviceName ? (
+          {!sessionIsEstablished ? (
+            <>הזינו שם והצטרפו או צרו חדר למטה כדי לסיים את ההתקנה במכשיר.</>
+          ) : (
             <>
-              {" "}
-              You’re <span className="font-medium text-foreground">{deviceName}</span> on this device.
+              המכשיר מוכן לשימוש.
+              {deviceName ? (
+                <>
+                  {" "}
+                  שם: <span className="font-medium text-foreground">{deviceName}</span>.
+                </>
+              ) : null}
+              {memberships.length > 0
+                ? ` ${memberships.length} חדרים שמורים.`
+                : ""}
             </>
-          ) : null}
-          {memberships.length > 0
-            ? ` ${memberships.length} room${memberships.length === 1 ? "" : "s"} saved.`
-            : ""}
+          )}
         </p>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -102,20 +114,22 @@ export function CrewSessionPanel() {
                   <span className="truncate">
                     {active ? (
                       <>
-                        <span className="font-mono font-medium">{active.room.code}</span>
+                        <span className="font-mono font-medium" dir="ltr">
+                          {active.room.code}
+                        </span>
                         {active.room.name ? (
                           <span className="text-muted-foreground"> · {active.room.name}</span>
                         ) : null}
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Choose a room</span>
+                      <span className="text-muted-foreground">בחרו חדר</span>
                     )}
                   </span>
                   <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[min(100vw-2rem,var(--radix-dropdown-menu-trigger-width))] min-w-48">
-                <DropdownMenuLabel>Your rooms</DropdownMenuLabel>
+                <DropdownMenuLabel>החדרים שלך</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {memberships.map((m) => {
                   const isActive = active?.roomId === m.roomId;
@@ -127,11 +141,13 @@ export function CrewSessionPanel() {
                         void goToRoom(m.roomId);
                       }}
                     >
-                      <span className="font-mono">{m.room.code}</span>
+                      <span className="font-mono" dir="ltr">
+                        {m.room.code}
+                      </span>
                       {m.room.name ? (
                         <span className="text-muted-foreground truncate">{m.room.name}</span>
                       ) : null}
-                      {isActive ? <CheckIcon className="text-primary ml-auto size-4 shrink-0" /> : null}
+                      {isActive ? <CheckIcon className="text-primary ms-auto size-4 shrink-0" /> : null}
                     </DropdownMenuItem>
                   );
                 })}
@@ -146,35 +162,35 @@ export function CrewSessionPanel() {
                 variant="outline"
                 size="icon"
                 className="size-10 shrink-0 text-muted-foreground hover:text-destructive"
-                aria-label="Forget this device"
+                aria-label="מחיקת המכשיר מהמערכת"
                 disabled={forgetMe.isPending || setActiveRoom.isPending}
               >
                 <Trash2Icon className="size-4" />
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent dir="rtl">
               <AlertDialogHeader>
-                <AlertDialogTitle>Forget this device?</AlertDialogTitle>
+                <AlertDialogTitle>למחוק את המכשיר?</AlertDialogTitle>
                 <AlertDialogDescription className="space-y-2">
                   <span className="block">
-                    This removes your crew profile and room memberships from this browser. Rooms are not deleted.
+                    פעולה זו מסירה את הפרופיל והחברויות מהדפדפן הזה. החדרים עצמם לא נמחקים.
                   </span>
                   <span className="block">
-                    If you owned a room and at least one contributor remains, one contributor becomes the owner.
-                    Otherwise another remaining member becomes the owner when needed.
+                    אם הייתם בעלים ונשאר לפחות משתתף מוביל, אחד מהם הופך לבעלים. אחרת נבחר בעלים מבין החברים הנותרים
+                    כשצריך.
                   </span>
-                  <span className="block font-medium text-foreground">You cannot undo this.</span>
+                  <span className="block font-medium text-foreground">לא ניתן לבטל.</span>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={forgetMe.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={forgetMe.isPending}>ביטול</AlertDialogCancel>
                 <Button
                   type="button"
                   variant="destructive"
                   disabled={forgetMe.isPending}
                   onClick={() => void forgetMe.mutateAsync()}
                 >
-                  {forgetMe.isPending ? "Clearing…" : "Forget me"}
+                  {forgetMe.isPending ? "מנקים…" : "מחקו אותי"}
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -185,21 +201,21 @@ export function CrewSessionPanel() {
       {active ? (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Active room</CardTitle>
+            <CardTitle className="text-base">חדר פעיל</CardTitle>
             <CardDescription>
-              Code <span className="font-mono font-semibold">{active.room.code}</span>
+              קוד <span className="font-mono font-semibold" dir="ltr">{active.room.code}</span>
               {active.room.name ? ` · ${active.room.name}` : null}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-muted-foreground">
-            You appear as <span className="font-medium text-foreground">{active.member.displayName}</span> (
-            {active.member.role})
+            מופיעים כ־<span className="font-medium text-foreground">{active.member.displayName}</span> (
+            {memberRoleHe(active.member.role)})
           </CardContent>
         </Card>
       ) : memberships.length > 0 ? (
-        <p className="text-muted-foreground">Use the menu above to open a room.</p>
+        <p className="text-muted-foreground">פתחו חדר מתפריט למעלה.</p>
       ) : (
-        <p className="text-muted-foreground">Join or create a room below.</p>
+        <p className="text-muted-foreground">הצטרפו או צרו חדר למטה.</p>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTRPC } from "@/trpc/client";
 
 const joinSchema = z.object({
-  code: z.string().min(1, "Enter a room code"),
+  code: z.string().min(1, "הזינו קוד חדר"),
   displayName: z.string().max(80).optional(),
 });
 
@@ -35,11 +35,15 @@ export function RoomForms() {
   const { data: crew, isPending: crewPending } = useQuery(trpc.crew.me.queryOptions());
 
   const lockedDisplayName = crew?.session?.displayName?.trim() ?? null;
+  /** Lock only when `BrowserSession.displayName` is set — a cookie/row without a name keeps the field enabled. */
+  const nameFieldLocked = Boolean(lockedDisplayName);
 
   const joinMut = useMutation({
     ...trpc.crew.joinRoom.mutationOptions(),
     onSuccess: async (data) => {
-      toast.success(data.rejoined ? `Back in room ${data.code}` : `Joined room ${data.code}`);
+      toast.success(
+        data.rejoined ? `חזרת לחדר ${data.code}` : `הצטרפת לחדר ${data.code}`,
+      );
       await queryClient.invalidateQueries(trpc.crew.me.queryFilter());
       router.push(`/room/${data.roomId}`);
     },
@@ -49,7 +53,7 @@ export function RoomForms() {
   const createMut = useMutation({
     ...trpc.crew.createRoom.mutationOptions(),
     onSuccess: async (data) => {
-      toast.success(`Room ready — share code ${data.code}`);
+      toast.success(`החדר מוכן — שתפו את הקוד ${data.code}`);
       await queryClient.invalidateQueries(trpc.crew.me.queryFilter());
       router.push(`/room/${data.roomId}`);
     },
@@ -86,8 +90,8 @@ export function RoomForms() {
     <div className="grid w-full gap-6 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Join a room</CardTitle>
-          <CardDescription>Enter the 5-digit code or scan the QR (paste digits here).</CardDescription>
+          <CardTitle>הצטרפות לחדר</CardTitle>
+          <CardDescription>קוד בן־5 ספרות, או הדבקת ספרות מסריקת QR.</CardDescription>
         </CardHeader>
         <Form {...joinForm}>
           <form
@@ -95,7 +99,7 @@ export function RoomForms() {
               const effective =
                 lockedDisplayName ?? values.displayName?.trim() ?? "";
               if (!effective) {
-                toast.error("Enter your name");
+                toast.error("הזינו שם");
                 return;
               }
               joinMut.mutate({
@@ -110,19 +114,26 @@ export function RoomForms() {
                 name="code"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Room code</FormLabel>
+                    <FormLabel>קוד חדר</FormLabel>
                     <FormControl>
-                      <Input inputMode="numeric" autoComplete="off" placeholder="12345" {...field} />
+                      <Input
+                        dir="ltr"
+                        className="font-mono"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="12345"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {lockedDisplayName ? (
+              {nameFieldLocked ? (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Your name on this device</span>
+                  <span className="text-muted-foreground">השם במכשיר הזה</span>
                   <p className="font-medium text-foreground">{lockedDisplayName}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">Used for every room you join.</p>
+                  <p className="text-muted-foreground mt-1 text-xs">משמש בכל החדרים שאליהם נכנסים.</p>
                 </div>
               ) : (
                 <FormField
@@ -130,9 +141,9 @@ export function RoomForms() {
                   name="displayName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your name</FormLabel>
+                      <FormLabel>השם שלך</FormLabel>
                       <FormControl>
-                        <Input autoComplete="nickname" placeholder="Alex" {...field} />
+                        <Input autoComplete="nickname" placeholder="לדוגמה: יוסי" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -142,7 +153,7 @@ export function RoomForms() {
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full" disabled={joinMut.isPending}>
-                {joinMut.isPending ? "Joining…" : "Join"}
+                {joinMut.isPending ? "מצטרפים…" : "הצטרף"}
               </Button>
             </CardFooter>
           </form>
@@ -151,8 +162,8 @@ export function RoomForms() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Create a room</CardTitle>
-          <CardDescription>You become owner and get a fresh 5-digit code to share.</CardDescription>
+          <CardTitle>יצירת חדר</CardTitle>
+          <CardDescription>תהיו בעלי החדר ותקבלו קוד חדש לשיתוף.</CardDescription>
         </CardHeader>
         <Form {...createForm}>
           <form
@@ -160,7 +171,7 @@ export function RoomForms() {
               const effective =
                 lockedDisplayName ?? values.displayName?.trim() ?? "";
               if (!effective) {
-                toast.error("Enter your name");
+                toast.error("הזינו שם");
                 return;
               }
               createMut.mutate({
@@ -170,11 +181,11 @@ export function RoomForms() {
             })}
           >
             <CardContent className="space-y-4">
-              {lockedDisplayName ? (
+              {nameFieldLocked ? (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Your name on this device</span>
+                  <span className="text-muted-foreground">השם במכשיר הזה</span>
                   <p className="font-medium text-foreground">{lockedDisplayName}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">Used when you create or join rooms.</p>
+                  <p className="text-muted-foreground mt-1 text-xs">משמש ביצירה או הצטרפות לחדרים.</p>
                 </div>
               ) : (
                 <FormField
@@ -182,9 +193,9 @@ export function RoomForms() {
                   name="displayName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your name</FormLabel>
+                      <FormLabel>השם שלך</FormLabel>
                       <FormControl>
-                        <Input autoComplete="nickname" placeholder="Alex" {...field} />
+                        <Input autoComplete="nickname" placeholder="לדוגמה: יוסי" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -196,9 +207,9 @@ export function RoomForms() {
                 name="roomName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Room label (optional)</FormLabel>
+                    <FormLabel>שם לחדר (אופציונלי)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Kitchen crew" {...field} />
+                      <Input placeholder="למשל: צוות מטבח" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -207,7 +218,7 @@ export function RoomForms() {
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full" disabled={createMut.isPending}>
-                {createMut.isPending ? "Creating…" : "Create room"}
+                {createMut.isPending ? "יוצרים…" : "צור חדר"}
               </Button>
             </CardFooter>
           </form>

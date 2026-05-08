@@ -105,6 +105,7 @@ export async function resolveCrewSession(): Promise<ResolvedCrewContext> {
   const sessionRow: BrowserSession = {
     id: session.id,
     token: session.token,
+    localUserId: session.localUserId,
     displayName: session.displayName,
     activeRoomId: session.activeRoomId,
     createdAt: session.createdAt,

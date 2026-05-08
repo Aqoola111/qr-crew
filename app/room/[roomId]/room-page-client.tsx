@@ -6,7 +6,10 @@ import { useEffect, useMemo } from "react";
 import { useTRPC } from "@/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RoomTasksSection } from "@/components/room-tasks-section";
+import { RoomPresencePanel } from "@/components/room-presence-panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { memberRoleHe } from "@/lib/ui-he";
 
 export function RoomPageClient({ roomId }: { roomId: string }) {
   const trpc = useTRPC();
@@ -16,7 +19,10 @@ export function RoomPageClient({ roomId }: { roomId: string }) {
 
   const setActiveRoom = useMutation({
     ...trpc.crew.setActiveRoom.mutationOptions(),
-    onSuccess: () => queryClient.invalidateQueries(trpc.crew.me.queryFilter()),
+    onSuccess: () => {
+      void queryClient.invalidateQueries(trpc.crew.me.queryFilter());
+      void queryClient.invalidateQueries(trpc.crew.roomMembers.queryFilter({ roomId }));
+    },
   });
 
   const membership = useMemo(
@@ -44,7 +50,7 @@ export function RoomPageClient({ roomId }: { roomId: string }) {
       <div className="mx-auto max-w-lg px-4 py-10">
         <p className="text-destructive text-sm">{error.message}</p>
         <Button className="mt-4" variant="outline" asChild>
-          <Link href="/">Back home</Link>
+          <Link href="/">חזרה לדף הבית</Link>
         </Button>
       </div>
     );
@@ -55,12 +61,12 @@ export function RoomPageClient({ roomId }: { roomId: string }) {
       <div className="mx-auto max-w-lg px-4 py-10">
         <Card>
           <CardHeader>
-            <CardTitle>Room access</CardTitle>
-            <CardDescription>You’re not in this room with this browser session.</CardDescription>
+            <CardTitle>גישה לחדר</CardTitle>
+            <CardDescription>אין לכם חברות בחדר הזה עם סשן הדפדפן הנוכחי.</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
             <Button asChild>
-              <Link href="/">Join from home</Link>
+              <Link href="/">הצטרפות מהבית</Link>
             </Button>
           </CardContent>
         </Card>
@@ -69,32 +75,42 @@ export function RoomPageClient({ roomId }: { roomId: string }) {
   }
 
   const { room, member } = membership;
+  const canSeePresence = member.role === "OWNER" || member.role === "CONTRIBUTOR";
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-muted-foreground text-sm">Room</p>
+          <p className="text-muted-foreground text-sm">חדר</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            {room.name ?? `Code ${room.code}`}
+            {room.name ?? `קוד ${room.code}`}
           </h1>
-          <p className="text-muted-foreground mt-1 font-mono text-lg">{room.code}</p>
+          <p className="text-muted-foreground mt-1 font-mono text-lg" dir="ltr">
+            {room.code}
+          </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/">Home</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/">בית</Link>
+          </Button>
+          <Button size="sm" asChild>
+            <Link href={`/room/${roomId}/members`}>חברים</Link>
+          </Button>
+        </div>
       </div>
+
+      <RoomTasksSection roomId={roomId} memberId={member.id} memberRole={member.role} />
+
+      {canSeePresence ? <RoomPresencePanel roomId={roomId} /> : null}
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">You</CardTitle>
+          <CardTitle className="text-base">אתם</CardTitle>
           <CardDescription>
-            Signed in as <span className="font-medium text-foreground">{member.displayName}</span> · {member.role}
+            מחוברים כ־<span className="font-medium text-foreground">{member.displayName}</span> ·{" "}
+            {memberRoleHe(member.role)}
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Task list and crew tools will live here next.
-        </CardContent>
       </Card>
     </div>
   );

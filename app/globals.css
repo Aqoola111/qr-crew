@@ -127,4 +127,9 @@
   html {
     @apply font-sans;
   }
+  input:not([dir="ltr"]),
+  textarea:not([dir="ltr"]),
+  select {
+    text-align: start;
+  }
 }

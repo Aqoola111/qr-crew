@@ -13,6 +13,19 @@ enum MemberRole {
   MEMBER
 }
 
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskUrgency {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 model Room {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -22,6 +35,7 @@ model Room {
   members            Member[]
   sessionMemberships SessionRoomMembership[]
   activeForSessions  BrowserSession[]      @relation("ActiveRoom")
+  tasks              Task[]
 }
 
 model Member {
@@ -30,15 +44,51 @@ model Member {
   room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   displayName String
   role        MemberRole @default(MEMBER)
+  /// Whether this member is open to new task assignments (also cleared when someone assigns them).
+  availableForTasks Boolean @default(true)
 
   sessionMemberships SessionRoomMembership[]
+  assignedTasks      Task[]                  @relation("TaskAssignee")
+  createdTasks       Task[]                  @relation("TaskCreator")
+  tasksCompleted     Task[]                  @relation("TaskCompletedBy")
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  roomId      String
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  urgency     TaskUrgency @default(MEDIUM)
+  /// Member-submitted tasks stay hidden from the room until an owner/contributor accepts.
+  pendingApproval Boolean @default(false)
+  status      TaskStatus @default(OPEN)
+  assigneeId  String?
+  assignee    Member?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  /// First time someone claimed the task ("I will do it").
+  claimedAt   DateTime?
+  /// When work moved to in progress.
+  inProgressAt DateTime?
+  createdById String
+  createdBy   Member     @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  completedAt DateTime?
+  completedById String?
+  completedBy   Member?  @relation("TaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([assigneeId])
+  @@index([roomId, pendingApproval])
+  @@index([roomId, status, completedAt])
 }
 
 /// Anonymous browser session (opaque cookie token). Holds which room is currently active for swap.
 model BrowserSession {
   id           String   @id @default(cuid())
   token        String   @unique
-  /// Display name locked after first join/create on this device (same person across rooms).
+  /// Stable id for this device profile (generated in the browser, sent on first name registration).
+  localUserId  String?
+  /// Display name set on first visit (before join/create room).
   displayName  String?
   activeRoomId String?
   activeRoom   Room?    @relation("ActiveRoom", fields: [activeRoomId], references: [id], onDelete: SetNull)
@@ -48,6 +98,7 @@ model BrowserSession {
   memberships SessionRoomMembership[]
 
   @@index([token])
+  @@index([localUserId])
 }
 
 /// Links a browser session to a member record in a specific room (multi-room support).
